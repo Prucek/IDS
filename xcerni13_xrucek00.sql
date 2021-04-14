@@ -1,5 +1,5 @@
--- Authors: Peter Rucek, Rebeka Cernianska
--- Date: 26 Mar 2020
+-- Authors: Peter Rucek (xrucek00), Rebeka Cernianska (xcerni13)
+-- Date: 14 Apr 2021
 -- Project: SQL script for IDS, Kitty Information System (KIS)
 
 DROP TABLE Cat CASCADE CONSTRAINT;
@@ -20,7 +20,7 @@ DROP SEQUENCE seq_ter;
 DROP SEQUENCE seq_own;
 DROP SEQUENCE seq_host;
 
--- CREATE
+-------------------------- CREATE Queries --------------------------------
 CREATE TABLE Race (
     raceID INT PRIMARY KEY,
     race_color_eyes VARCHAR(100),
@@ -113,7 +113,7 @@ CREATE TABLE CatOwns(
     CHECK(date_since <= date_until)
 );
 
---ALTERS
+-------------------------- ALTER Queries --------------------------------
 ALTER TABLE Cat
 ADD raceFK INT;
 ALTER TABLE Cat 
@@ -140,7 +140,7 @@ ALTER TABLE Ownership
 ADD FOREIGN KEY (hostFK) REFERENCES Host(hostID);
 
 
--- INSERTS
+-------------------------- INSERT Queries --------------------------------
 CREATE SEQUENCE seq_race
 MINVALUE 1
 START WITH 1
@@ -321,6 +321,7 @@ INSERT INTO CatOwns (catID, ownID, date_since, date_until)
         (SELECT ownID from Ownership WHERE ownType='Nuclear weapon'),
         DATE '2018-4-24', DATE '2020-4-24'
     );
+--------------------------------------------------------------------------
 
 -- SELECT * FROM Cat;
 -- SELECT * FROM Race;
@@ -332,3 +333,34 @@ INSERT INTO CatOwns (catID, ownID, date_since, date_until)
 -- SELECT * FROM HostPrefers;
 -- SELECT * FROM HostServes;
 -- SELECT * FROM CatOwns;
+
+-------------------------- SELECT Queries --------------------------------
+
+-- Select all Cats with Race.Origin from Mexico
+SELECT * FROM Cat C INNER JOIN Race R ON R.raceID = C.raceFK WHERE R.origin = 'Mexico';
+
+-- Select all Ownerships, that are in TeritoryType = Kitchen
+SELECT * FROM Ownership O INNER JOIN Teritory T ON O.teritoryFK = T.teritoryID WHERE T.teritoryType = 'Kitchen';
+
+-- Select all Races that Hosts prefers
+SELECT H.name as HostName, R.race_color_eyes, R.origin, R.max_teeth_len, R.specific_features 
+FROM Host H NATURAL JOIN HostPrefers HP  NATURAL JOIN Race R;
+
+-- Select all lives of cats born in kitchen
+SELECT C.main_name as CatName, L.lifeOrder, L.birthDay FROM Cat C, Life L, Teritory T WHERE C.catID = L.catFK 
+AND L.bornIN = T.teritoryID AND T.teritoryType = 'Kitchen';
+
+-- Select sum of ownerships in teritory
+SELECT T.teritoryType, Sum(O.quantity) FROM Teritory T INNER JOIN Ownership O 
+ON T.teritoryID = O.teritoryFK GROUP BY T.teritoryType;
+
+-- Select all lives born in a teritory
+SELECT COUNT(*) LivesCount, T.teritoryType FROM Life L INNER JOIN Teritory T ON T.teritoryID = L.bornin GROUP BY T.teritoryType;
+
+-- SELECT all cats that have corespoding colors of eyes with their race
+SELECT C.main_name, C.color_eyes FROM Cat C, Race R WHERE R.raceID = C.raceFK AND EXISTS 
+(SELECT * FROM Race R WHERE R.raceID = C.raceFK AND R.race_color_eyes = C.color_eyes AND C.color_eyes = R.race_color_eyes );
+
+-- SELECT all cats born in March 2010
+SELECT * FROM Cat C WHERE C.catID IN 
+(SELECT L.catFK FROM Life L WHERE L.birthDay BETWEEN DATE '2010-3-1' AND DATE '2010-3-31');
