@@ -336,7 +336,7 @@ INSERT INTO CatOwns (catID, ownID, date_since, date_until)
 
 -------------------------- SELECT Queries --------------------------------
 
--- Select all Cats with Race.Origin from Mexico
+Select all Cats with Race.Origin from Mexico
 SELECT * FROM Cat C INNER JOIN Race R ON R.raceID = C.raceFK WHERE R.origin = 'Mexico';
 
 -- Select all Ownerships, that are in TeritoryType = Kitchen
@@ -364,3 +364,22 @@ SELECT C.main_name, C.color_eyes FROM Cat C, Race R WHERE R.raceID = C.raceFK AN
 -- SELECT all cats born in March 2010
 SELECT * FROM Cat C WHERE C.catID IN 
 (SELECT L.catFK FROM Life L WHERE L.birthDay BETWEEN DATE '2010-3-1' AND DATE '2010-3-31');
+
+--------------------------  Explain Plan + Index --------------------------------
+DROP INDEX my_index;
+
+EXPLAIN PLAN FOR
+SELECT Count(*) Num, Cat.main_name
+FROM Cat NATURAL JOIN Life
+WHERE Life.catFK = Cat.catID
+GROUP BY Cat.main_name;
+SELECT * FROM TABLE(DBMS_XPLAN.display());
+
+CREATE INDEX my_index ON Life(catFK);
+
+EXPLAIN PLAN FOR
+SELECT Count(*) Num, Cat.main_name
+FROM Cat NATURAL JOIN Life
+WHERE Life.catFK = Cat.catID
+GROUP BY Cat.main_name;
+SELECT * FROM TABLE(DBMS_XPLAN.display());
