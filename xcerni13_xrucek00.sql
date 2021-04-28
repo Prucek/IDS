@@ -336,37 +336,36 @@ INSERT INTO CatOwns (catID, ownID, date_since, date_until)
 
 -------------------------- SELECT Queries --------------------------------
 
-Select all Cats with Race.Origin from Mexico
-SELECT * FROM Cat C INNER JOIN Race R ON R.raceID = C.raceFK WHERE R.origin = 'Mexico';
+-- Select all Cats with Race.Origin from Mexico
+-- SELECT * FROM Cat C INNER JOIN Race R ON R.raceID = C.raceFK WHERE R.origin = 'Mexico';
 
 -- Select all Ownerships, that are in TeritoryType = Kitchen
-SELECT * FROM Ownership O INNER JOIN Teritory T ON O.teritoryFK = T.teritoryID WHERE T.teritoryType = 'Kitchen';
+-- SELECT * FROM Ownership O INNER JOIN Teritory T ON O.teritoryFK = T.teritoryID WHERE T.teritoryType = 'Kitchen';
 
 -- Select all Races that Hosts prefers
-SELECT H.name as HostName, R.race_color_eyes, R.origin, R.max_teeth_len, R.specific_features 
-FROM Host H NATURAL JOIN HostPrefers HP  NATURAL JOIN Race R;
+-- SELECT H.name as HostName, R.race_color_eyes, R.origin, R.max_teeth_len, R.specific_features 
+-- FROM Host H NATURAL JOIN HostPrefers HP  NATURAL JOIN Race R;
 
 -- Select all lives of cats born in kitchen
-SELECT C.main_name as CatName, L.lifeOrder, L.birthDay FROM Cat C, Life L, Teritory T WHERE C.catID = L.catFK 
-AND L.bornIN = T.teritoryID AND T.teritoryType = 'Kitchen';
+-- SELECT C.main_name as CatName, L.lifeOrder, L.birthDay FROM Cat C, Life L, Teritory T WHERE C.catID = L.catFK 
+-- AND L.bornIN = T.teritoryID AND T.teritoryType = 'Kitchen';
 
 -- Select sum of ownerships in teritory
-SELECT T.teritoryType, Sum(O.quantity) FROM Teritory T INNER JOIN Ownership O 
-ON T.teritoryID = O.teritoryFK GROUP BY T.teritoryType;
+-- SELECT T.teritoryType, Sum(O.quantity) FROM Teritory T INNER JOIN Ownership O 
+-- ON T.teritoryID = O.teritoryFK GROUP BY T.teritoryType;
 
 -- Select all lives born in a teritory
-SELECT COUNT(*) LivesCount, T.teritoryType FROM Life L INNER JOIN Teritory T ON T.teritoryID = L.bornin GROUP BY T.teritoryType;
+-- SELECT COUNT(*) LivesCount, T.teritoryType FROM Life L INNER JOIN Teritory T ON T.teritoryID = L.bornin GROUP BY T.teritoryType;
 
--- SELECT all cats that have corespoding colors of eyes with their race
-SELECT C.main_name, C.color_eyes FROM Cat C, Race R WHERE R.raceID = C.raceFK AND EXISTS 
-(SELECT * FROM Race R WHERE R.raceID = C.raceFK AND R.race_color_eyes = C.color_eyes AND C.color_eyes = R.race_color_eyes );
+-- Select all cats that have corespoding colors of eyes with their race
+-- SELECT C.main_name, C.color_eyes FROM Cat C, Race R WHERE R.raceID = C.raceFK AND EXISTS 
+-- (SELECT * FROM Race R WHERE R.raceID = C.raceFK AND R.race_color_eyes = C.color_eyes AND C.color_eyes = R.race_color_eyes );
 
--- SELECT all cats born in March 2010
-SELECT * FROM Cat C WHERE C.catID IN 
-(SELECT L.catFK FROM Life L WHERE L.birthDay BETWEEN DATE '2010-3-1' AND DATE '2010-3-31');
+-- Select all cats born in March 2010
+-- SELECT * FROM Cat C WHERE C.catID IN 
+-- (SELECT L.catFK FROM Life L WHERE L.birthDay BETWEEN DATE '2010-3-1' AND DATE '2010-3-31');
 
 --------------------------  Explain Plan + Index --------------------------------
-DROP INDEX my_index;
 
 EXPLAIN PLAN FOR
 SELECT Count(*) Num, Cat.main_name
@@ -383,3 +382,192 @@ FROM Cat NATURAL JOIN Life
 WHERE Life.catFK = Cat.catID
 GROUP BY Cat.main_name;
 SELECT * FROM TABLE(DBMS_XPLAN.display());
+
+----------------------------- Triggers -----------------------------------
+
+-- For PK in Cat table
+CREATE OR REPLACE TRIGGER If_Cat_PK_NULL
+    BEFORE INSERT ON Cat
+    FOR EACH ROW
+    BEGIN
+        :NEW.catID := seq_cat.nextval;
+    END;
+/
+-- For PK in Race table
+CREATE OR REPLACE TRIGGER If_Race_PK_NULL
+    BEFORE INSERT ON Race
+    FOR EACH ROW
+    BEGIN
+        :NEW.raceID := seq_race.nextval;
+    END;
+/
+-- For PK, lifeOrder, isDead in Life table
+CREATE OR REPLACE TRIGGER If_Life_Attributes_NULL
+    BEFORE INSERT ON Life
+    FOR EACH ROW
+    DECLARE
+    num INTEGER;
+    BEGIN
+        :NEW.lifeID := seq_life.nextval;
+        SELECT Count(*) INTO num FROM Life WHERE catFK = :NEW.catFK;
+        :NEW.lifeOrder :=  num + 1; -- lifeOrder will be calculated automatically
+        -- isDeath will be set if deathDay
+        IF (:NEW.deathDay IS NULL) THEN
+            :NEW.isDead := 'N';
+        ELSE
+            :NEW.isDead := 'Y';
+        END IF;
+       
+    END;
+/
+
+-- For proper dates insertion in Life table
+CREATE OR REPLACE TRIGGER Proper_life_dates
+    BEFORE INSERT on Life
+    FOR EACH ROW
+    DECLARE
+    last_birthDate DATE;
+    last_deathDate DATE;
+    last_date DATE;
+    newDeath Life.deathDay%TYPE;
+    isNewDead Life.isDead%TYPE;
+    BEGIN
+        SELECT MAX(L.birthDay) INTO last_birthDate FROM Life L WHERE L.catFK = :NEW.catFK;
+        SELECT MAX(L.deathDay) INTO last_deathDate FROM Life L WHERE L.catFK = :NEW.catFK;
+        SELECT (CASE WHEN last_birthDate > last_deathDate
+                THEN last_birthDate
+                ELSE last_deathDate END) INTO last_date
+            FROM dual;
+
+        IF (:NEW.birthday < last_date) THEN
+            raise_application_error(-1, 'ERROR: new life can start only after previous life');
+        END IF; 
+
+        -- IF new life should be created and previous life is not ended yet then instant reincarnation happens
+        SELECT deathDay, isDead INTO newDeath, isNewDead FROM Life WHERE catFK = :NEW.catFK AND birthDay = last_birthDate;
+        IF newDeath IS NULL AND isNewDead = 'N' THEN
+            UPDATE Life
+            SET deathDay = :NEW.birthDay,
+                isDead = 'Y'
+            WHERE catFK = :NEW.catFK AND birthDay = last_birthDate;
+        END IF; 
+    END;    
+/
+
+
+------------------------ Trying out triggers -----------------------------
+
+INSERT INTO Cat (main_name, color_fur, color_eyes, raceFK)
+    VALUES ('John', 'vanilla', 'green', (SELECT raceID from Race WHERE origin='Australia'));
+
+SELECT * FROM Cat;
+------
+INSERT INTO Race (race_color_eyes, origin, max_teeth_len, specific_features)
+    VALUES ('purple', 'UK', 1, 'Likes water');
+
+SELECT * FROM Race;
+------
+
+-- To see the differnece
+SELECT * FROM Life ORDER BY catFK, lifeOrder;
+
+-- This life will be added as usual
+INSERT INTO Life (lifeOrder, isDead, birthDay, deathDay, catFK, bornIn, killedIn)
+    VALUES (
+    (SELECT Count(*) FROM (SELECT C.main_name FROM Cat C INNER JOIN Life ON Life.catFK = C.catID) WHERE main_name='Kocur') + 1,
+    'Y', DATE '2010-3-17', DATE '2010-3-19',
+    (SELECT catID from Cat WHERE main_name='Kocur'), 
+    (SELECT teritoryID from Teritory WHERE teritoryType='Kitchen'),
+    (SELECT teritoryID from Teritory WHERE teritoryType='Kitchen'));
+
+-- This life will occur error beacause deathDay is earlier then birthDay, and will not be added
+-- already covered in CHECK 
+-- INSERT INTO Life (birthDay, deathDay, catFK, bornIn, killedIn)
+--     VALUES ( DATE '2010-3-19', DATE '2010-3-17',
+--     (SELECT catID from Cat WHERE main_name='Kocur'), 
+--     (SELECT teritoryID from Teritory WHERE teritoryType='Kitchen'),
+--     (SELECT teritoryID from Teritory WHERE teritoryType='Kitchen'));
+
+-- This life will occur error beacause it would have start before the end of previous life, and will not be added
+-- INSERT INTO Life (birthDay, deathDay, catFK, bornIn, killedIn)
+--     VALUES ( DATE '2010-3-14', DATE '2010-3-19',
+--     (SELECT catID from Cat WHERE main_name='Kocur'), 
+--     (SELECT teritoryID from Teritory WHERE teritoryType='Kitchen'),
+--     (SELECT teritoryID from Teritory WHERE teritoryType='Kitchen'));
+
+-- Can insert like this, isDead, life order and PK will be added in the trigger 
+INSERT INTO Life (birthDay, catFK, bornIn)
+    VALUES ( DATE '2012-4-22',
+    (SELECT catID from Cat WHERE main_name='Kocur'), 
+    (SELECT teritoryID from Teritory WHERE teritoryType='Forest'));
+
+-- This insert will end the life above with deathDay same as bithDay of this life (instant reincarnation)
+INSERT INTO Life (birthDay, catFK, bornIn)
+    VALUES ( DATE '2016-8-23',
+    (SELECT catID from Cat WHERE main_name='Kocur'), 
+    (SELECT teritoryID from Teritory WHERE teritoryType='Forest'));
+
+-- To see the differnece
+SELECT * FROM Life ORDER BY catFK, lifeOrder;
+
+----------------------------- Procedures ---------------------------------
+
+-- Prints detail information about every cat
+CREATE OR REPLACE PROCEDURE cat_details
+AS
+CURSOR cats IS SELECT * FROM Cat;
+single_cat cats%ROWTYPE;
+cat_origin VARCHAR(100);
+cat_life INT;
+cat_birth DATE;
+CURSOR cats_own IS SELECT * FROM CatOwns;
+single_cat_owns cats_own%ROWTYPE;
+cat_own_type VARCHAR(100);
+cat_own_quantity INT;
+cat_subject INT;
+BEGIN
+    OPEN cats;
+    LOOP
+        FETCH cats INTO single_cat;
+        EXIT WHEN cats%NOTFOUND;
+        SELECT origin INTO cat_origin FROM Race WHERE single_cat.raceFK = raceID;
+        SELECT COUNT(*) INTO cat_life FROM ( SELECT lifeOrder FROM Life WHERE single_cat.catID = catFK );
+
+        -- Prints cat name, origin and information about lifes
+        IF (cat_life <> 0) THEN
+            SELECT birthDay INTO cat_birth FROM Life WHERE single_cat.catID = catFK AND lifeOrder = cat_life;
+                dbms_output.put_line('Cat "' || single_cat.main_name || '" comes from '|| cat_origin
+                || ' lives his/hers ' || cat_life || ' life. This life was born on ' || cat_birth || '.');
+
+            -- Print all ownerships that the cat possesses
+            OPEN cats_own;
+            LOOP
+                FETCH cats_own INTO single_cat_owns;
+                EXIT WHEN  cats_own%NOTFOUND;
+                IF (single_cat_owns.catID = single_cat.catID) THEN
+                    SELECT ownType, quantity INTO cat_own_type, cat_own_quantity 
+                    FROM Ownership WHERE single_cat_owns.ownID = ownID;
+                    dbms_output.put_line('This cat owns/has owned ' || cat_own_quantity || ' ' || cat_own_type || '.');
+                END IF;
+            END LOOP;
+            CLOSE cats_own;
+            -- Print number of hosts / subjects
+            SELECT COUNT(*) INTO cat_subject FROM HostServes WHERE single_cat.catID = catID;
+            IF (cat_subject <> 0) THEN 
+                dbms_output.put_line('This cat has/has had ' || cat_subject || ' host(s).');
+            END IF;
+        ELSE 
+            dbms_output.put_line('Cat "' || single_cat.main_name || '" comes from '|| cat_origin ||
+            ' and was not born yet.');
+        END IF;
+    END LOOP;
+    CLOSE cats;
+
+    EXCEPTION WHEN NO_DATA_FOUND THEN
+	BEGIN
+		dbms_output.put_line('No data were found!');
+	END;
+END;
+/
+-- executing procedure
+BEGIN cat_details; END;
