@@ -1,5 +1,5 @@
 -- Authors: Peter Rucek (xrucek00), Rebeka Cernianska (xcerni13)
--- Date: 14 Apr 2021
+-- Date: 29 Apr 2021
 -- Project: SQL script for IDS, Kitty Information System (KIS)
 
 DROP TABLE Cat CASCADE CONSTRAINT;
@@ -321,18 +321,6 @@ INSERT INTO CatOwns (catID, ownID, date_since, date_until)
         (SELECT ownID from Ownership WHERE ownType='Nuclear weapon'),
         DATE '2018-4-24', DATE '2020-4-24'
     );
---------------------------------------------------------------------------
-
--- SELECT * FROM Cat;
--- SELECT * FROM Race;
--- SELECT * FROM Life;
--- SELECT * FROM Teritory;
--- SELECT * FROM LivesIn;
--- SELECT * FROM Ownership;
--- SELECT * FROM Host;
--- SELECT * FROM HostPrefers;
--- SELECT * FROM HostServes;
--- SELECT * FROM CatOwns;
 
 -------------------------- SELECT Queries --------------------------------
 
@@ -551,7 +539,7 @@ BEGIN
                 END IF;
             END LOOP;
             CLOSE cats_own;
-            -- Print number of hosts / subjects
+            -- Print number of hosts
             SELECT COUNT(*) INTO cat_subject FROM HostServes WHERE single_cat.catID = catID;
             IF (cat_subject <> 0) THEN 
                 dbms_output.put_line('This cat has had ' || cat_subject || ' host(s).');
@@ -563,10 +551,15 @@ BEGIN
     END LOOP;
     CLOSE cats;
 
-    EXCEPTION WHEN NO_DATA_FOUND THEN
-	BEGIN
-		dbms_output.put_line('No data was found!');
-	END;
+    EXCEPTION 
+        WHEN NO_DATA_FOUND THEN
+        BEGIN
+            dbms_output.put_line('No data was found!');
+        END;
+        WHEN OTHERS THEN
+        BEGIN
+            dbms_output.put_line('An error was encountered - '||SQLCODE||' -ERROR- '||SQLERRM);
+        END;
 END;
 /
 
@@ -608,14 +601,12 @@ BEGIN
         BEGIN
             dbms_output.put_line('No data was found!');
         END;
-
         WHEN OTHERS THEN
         BEGIN
             dbms_output.put_line('An error was encountered - '||SQLCODE||' -ERROR- '||SQLERRM);
         END;
 END;
 /
-
 
 -- executing procedure
 exec cat_details();
