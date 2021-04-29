@@ -511,7 +511,7 @@ INSERT INTO Life (birthDay, catFK, bornIn)
 SELECT * FROM Life ORDER BY catFK, lifeOrder;
 
 ----------------------------- Procedures ---------------------------------
-
+SET SERVEROUTPUT ON;
 -- Prints detail information about every cat
 CREATE OR REPLACE PROCEDURE cat_details
 AS
@@ -547,14 +547,14 @@ BEGIN
                 IF (single_cat_owns.catID = single_cat.catID) THEN
                     SELECT ownType, quantity INTO cat_own_type, cat_own_quantity 
                     FROM Ownership WHERE single_cat_owns.ownID = ownID;
-                    dbms_output.put_line('This cat owns/has owned ' || cat_own_quantity || ' ' || cat_own_type || '.');
+                    dbms_output.put_line('This cat has owned ' || cat_own_quantity || ' ' || cat_own_type || '.');
                 END IF;
             END LOOP;
             CLOSE cats_own;
             -- Print number of hosts / subjects
             SELECT COUNT(*) INTO cat_subject FROM HostServes WHERE single_cat.catID = catID;
             IF (cat_subject <> 0) THEN 
-                dbms_output.put_line('This cat has/has had ' || cat_subject || ' host(s).');
+                dbms_output.put_line('This cat has had ' || cat_subject || ' host(s).');
             END IF;
         ELSE 
             dbms_output.put_line('Cat "' || single_cat.main_name || '" comes from '|| cat_origin ||
@@ -565,9 +565,58 @@ BEGIN
 
     EXCEPTION WHEN NO_DATA_FOUND THEN
 	BEGIN
-		dbms_output.put_line('No data were found!');
+		dbms_output.put_line('No data was found!');
 	END;
 END;
 /
+
+
+
+CREATE OR REPLACE PROCEDURE teritory_info
+AS
+CURSOR teritories IS SELECT * FROM Teritory;
+teritory teritories%ROWTYPE;
+CURSOR ownerships IS SELECT * FROM Ownership;
+ownership ownerships%ROWTYPE;
+num_of_lives INT;
+own_name VARCHAR(100);
+BEGIN
+    OPEN teritories;
+    LOOP
+        FETCH teritories INTO teritory;
+        EXIT WHEN teritories%NOTFOUND;
+        SELECT COUNT(*) INTO num_of_lives FROM Life WHERE Life.bornIn = teritory.teritoryID;
+        IF (num_of_lives <> 0) THEN
+            dbms_output.put_line('Teritory ' || teritory.teritoryType || ' has ' || num_of_lives || ' lives started in it.');
+        ELSE
+            dbms_output.put_line('There are no lives that started in teritory ' || teritory.teritoryType || '.');
+        END IF;
+        OPEN ownerships;
+        LOOP
+            FETCH ownerships INTO ownership;
+            EXIT WHEN ownerships%NOTFOUND;
+            IF (ownership.teritoryFK = teritory.teritoryID) THEN
+                 dbms_output.put_line('Object ' || ownership.owntype || ' is placed in teritory ' || teritory.teritoryType || '.');
+            END IF;
+        END LOOP;
+        CLOSE ownerships;
+    END LOOP;
+    CLOSE teritories;
+
+    EXCEPTION 
+        WHEN NO_DATA_FOUND THEN
+        BEGIN
+            dbms_output.put_line('No data was found!');
+        END;
+
+        WHEN OTHERS THEN
+        BEGIN
+            dbms_output.put_line('An error was encountered - '||SQLCODE||' -ERROR- '||SQLERRM);
+        END;
+END;
+/
+
+
 -- executing procedure
-BEGIN cat_details; END;
+exec cat_details();
+exec teritory_info();
