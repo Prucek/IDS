@@ -1,5 +1,5 @@
--- Authors: Peter Rucek (xrucek00), Rebeka Cernianska (xcerni13)
--- Date: 29 Apr 2021
+-- Authors: Rebeka Cernianska (xcerni13), Peter Rucek (xrucek00)
+-- Date: 30 Apr 2021
 -- Project: SQL script for IDS, Kitty Information System (KIS)
 
 DROP TABLE Cat CASCADE CONSTRAINT;
@@ -323,6 +323,7 @@ INSERT INTO CatOwns (catID, ownID, date_since, date_until)
     );
 
 -------------------------- SELECT Queries --------------------------------
+-- Task 3, should not be included in the final version of this script
 
 -- Select all Cats with Race.Origin from Mexico
 -- SELECT * FROM Cat C INNER JOIN Race R ON R.raceID = C.raceFK WHERE R.origin = 'Mexico';
@@ -449,12 +450,11 @@ INSERT INTO Cat (main_name, color_fur, color_eyes, raceFK)
     VALUES ('John', 'vanilla', 'green', (SELECT raceID from Race WHERE origin='Australia'));
 
 SELECT * FROM Cat;
-------
+
 INSERT INTO Race (race_color_eyes, origin, max_teeth_len, specific_features)
     VALUES ('purple', 'UK', 1, 'Likes water');
 
 SELECT * FROM Race;
-------
 
 -- To see the differnece
 SELECT * FROM Life ORDER BY catFK, lifeOrder;
@@ -564,8 +564,6 @@ BEGIN
 END;
 /
 
-
-
 CREATE OR REPLACE PROCEDURE teritory_info
 AS
 CURSOR teritories IS SELECT * FROM Teritory;
@@ -653,3 +651,7 @@ COMMIT;
 
 -- To see the differnece
 SELECT * FROM Australians;
+
+-- When XCERNI13 is running this script it would add a new cat 
+-- every time script is run and multiple same rows would be created
+DELETE FROM XRUCEK00.Cat WHERE main_name = 'New Australian';
