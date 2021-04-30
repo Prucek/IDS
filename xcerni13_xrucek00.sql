@@ -500,6 +500,7 @@ SELECT * FROM Life ORDER BY catFK, lifeOrder;
 
 ----------------------------- Procedures ---------------------------------
 SET SERVEROUTPUT ON;
+
 -- Prints detail information about every cat
 CREATE OR REPLACE PROCEDURE cat_details
 AS
@@ -611,3 +612,44 @@ END;
 -- executing procedure
 exec cat_details();
 exec teritory_info();
+
+--------------------------- Granting access ------------------------------
+
+-- Grant access to all tables to XCERNI13
+GRANT ALL ON Cat TO XCERNI13;
+GRANT ALL ON Race TO XCERNI13;
+GRANT ALL ON Host TO XCERNI13;
+GRANT ALL ON HostPrefers TO XCERNI13;
+GRANT ALL ON HostServes TO XCERNI13;
+GRANT ALL ON Life TO XCERNI13;
+GRANT ALL ON Teritory TO XCERNI13;
+GRANT ALL ON LivesIn TO XCERNI13;
+GRANT ALL ON Ownership TO XCERNI13;
+GRANT ALL ON CatOwns TO XCERNI13;
+
+-- Grant access to execute procedures to XCERNI13
+GRANT EXECUTE ON teritory_info TO XCERNI13;
+GRANT EXECUTE ON cat_details TO XCERNI13;
+
+------------------------- Materialized view ------------------------------
+DROP MATERIALIZED VIEW Australians;
+
+CREATE MATERIALIZED VIEW Australians
+    CACHE 
+    BUILD IMMEDIATE 
+    REFRESH COMPLETE ON COMMIT 
+    ENABLE QUERY REWRITE 
+
+    AS SELECT C.catID, C.main_name FROM XRUCEK00.Cat C 
+    INNER JOIN XRUCEK00.Race R ON R.raceID = C.raceFK WHERE R.origin = 'Australia';
+
+-- To see the differnece
+SELECT * FROM Australians;
+
+-- Inserting new cat from Australia should be visible in Australians view 
+INSERT INTO XRUCEK00.Cat (main_name, raceFK)
+    VALUES ('New Australian', (SELECT raceID from Race WHERE origin='Australia'));
+COMMIT;
+
+-- To see the differnece
+SELECT * FROM Australians;
